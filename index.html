@@ -1,0 +1,50 @@
+<!doctype html>
+<!-- Copyright (C) 2026 THERSANE - SPDX-License-Identifier: GPL-3.0-or-later - see LICENSE -->
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://cloudflare-dns.com; base-uri 'none'; form-action 'none'">
+	<meta name="referrer" content="no-referrer">
+	<meta name="description" content="Read DMARC aggregate reports (.xml, .gz, .zip) directly in your browser.">
+	<title>DMARC report analyser</title>
+	<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="top">
+	<h1><a href="./" data-i18n="title">DMARC report analyser</a></h1>
+	<span class="muted" data-i18n="tagline">Aggregate reports (rua) as .xml, .gz or .zip</span>
+	<nav class="lang-switch" id="lang-switch" aria-label="Language"></nav>
+</header>
+
+<main>
+	<section class="loader" id="loader">
+		<label class="dropzone" id="dropzone">
+			<input type="file" id="file-input" multiple accept=".xml,.gz,.zip,application/gzip,application/zip,text/xml">
+			<strong data-i18n="drop_title">Drop your DMARC reports here</strong>
+			<span data-i18n="drop_hint">or click to choose files (.xml, .xml.gz, .zip - several files allowed)</span>
+		</label>
+	</section>
+
+	<section class="errors" id="errors" hidden></section>
+
+	<section id="app" hidden></section>
+
+	<section class="help" id="help">
+		<h2 data-i18n="help_title">How does it work?</h2>
+		<ul>
+			<li data-i18n="help_1_html">Mailbox providers (Google, Microsoft, Yahoo…) send a compressed report every day to the <code>rua=</code> address of your DMARC record.</li>
+			<li data-i18n="help_2">Drop one or more of these files above: they are read directly in your browser and are not sent to any server.</li>
+			<li data-i18n="help_dmarc_html">A message <b>passes DMARC</b> when DKIM <em>or</em> SPF is valid <em>and aligned</em> with the <code>From:</code> domain.</li>
+		</ul>
+	</section>
+</main>
+
+<!-- Server features, set by index.php: {"server": true} -->
+<script type="application/json" id="app-config">{}</script>
+<script src="lang/en.js"></script>
+<script src="lang/fr.js"></script>
+<script src="assets/parser.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

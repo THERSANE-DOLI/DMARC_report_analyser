@@ -1,0 +1,7 @@
+Options -Indexes
+DirectoryIndex index.php index.html
+
+# Hidden files (.git, .env...) are never served
+<FilesMatch "^\.">
+	Require all denied
+</FilesMatch>
