@@ -6,6 +6,8 @@ A web page to easily read DMARC aggregate reports (`rua`) sent every day by Goog
 
 Files are read **directly in the browser**: they are not sent to any server.
 
+**Online version: https://thersane-doli.github.io/DMARC_report_analyser/**
+
 ## Two versions in one repository
 
 | | Static version (`index.html`) | Server version (`index.php`) |

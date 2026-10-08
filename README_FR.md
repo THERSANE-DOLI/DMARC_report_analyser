@@ -6,6 +6,8 @@ Page web pour lire facilement les rapports DMARC agrégés (`rua`) envoyés chaq
 
 Les fichiers sont lus **directement dans le navigateur** : ils ne sont envoyés à aucun serveur.
 
+**Version en ligne : https://thersane-doli.github.io/DMARC_report_analyser/**
+
 ## Deux versions dans le même dépôt
 
 | | Version statique (`index.html`) | Version serveur (`index.php`) |
