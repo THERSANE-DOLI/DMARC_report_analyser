@@ -6,7 +6,7 @@
 	"title": "DMARC report analyser",
 	"tagline": "Aggregate reports (rua) as .xml, .gz or .zip",
 	"drop_title": "Drop your DMARC reports here",
-	"drop_hint": "or click to choose files (.xml, .xml.gz, .zip - several files allowed)",
+	"drop_hint": "or click to choose files (.xml, .xml.gz, .zip, or emails .eml - several files allowed)",
 	"analysing": "Analysing {0} file(s)…",
 	"errors_title": "{0} problem(s):",
 	"help_title": "How does it work?",
@@ -129,5 +129,9 @@
 	"check_auto_hint": "No selector given: {1} common selectors were tried and only the active keys found are shown. Enter your selector if it is not listed.",
 	"check_no_selector_found": "No common selector found: enter the DKIM selector (s= tag of the DKIM-Signature header of a sent message).",
 	"footer_source": "Source code on GitHub",
-	"footer_by": "Made by"
+	"footer_by": "Made by",
+	"help_eml": "You can also drop the emails themselves from your mail client (.eml files): their report attachments are extracted.",
+	"err_eml": "{0}: unreadable email attachment",
+	"err_eml_none": "{0}: no DMARC report attachment (.xml, .gz, .zip) found in this email",
+	"err_drop_nofile": "The dropped item contains no file. From Thunderbird, drag the email or its attachment onto your desktop first, then drop the file here (or use File > Save As)."
 };

@@ -22,6 +22,7 @@ Les deux versions partagent l'interface (`assets/`), le lecteur de rapports et l
 ## Fonctionnalités
 
 - Formats acceptés : `.xml`, `.gz` / `.xml.gz`, `.zip` (y compris un zip contenant des `.gz`)
+- E-mails `.eml` : les rapports en pièce jointe sont extraits (y compris dans un e-mail transféré). Depuis Thunderbird, glisser l'e-mail sur le bureau puis déposer le fichier `.eml` dans la page
 - Plusieurs fichiers à la fois, par glisser-déposer ou sélection
 - Indicateurs : nombre de rapports et période couverte, messages, IP sources, taux de conformité DMARC, DKIM et SPF alignés, quarantaine / rejet
 - Quatre vues :

@@ -22,6 +22,7 @@ Both versions share the interface (`assets/`), the report reader and the transla
 ## Features
 
 - Supported formats: `.xml`, `.gz` / `.xml.gz`, `.zip` (including a zip containing `.gz` files)
+- `.eml` emails: report attachments are extracted (forwarded emails included). From Thunderbird, drag the email to the desktop, then drop the `.eml` file on the page
 - Several files at once, by drag and drop or file picker
 - Summary: number of reports and covered period, messages, source IPs, DMARC pass rate, aligned DKIM and SPF, quarantine / reject
 - Four views:

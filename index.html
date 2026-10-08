@@ -20,9 +20,9 @@
 <main>
 	<section class="loader" id="loader">
 		<label class="dropzone" id="dropzone">
-			<input type="file" id="file-input" multiple accept=".xml,.gz,.zip,application/gzip,application/zip,text/xml">
+			<input type="file" id="file-input" multiple accept=".xml,.gz,.zip,.eml,application/gzip,application/zip,text/xml,message/rfc822">
 			<strong data-i18n="drop_title">Drop your DMARC reports here</strong>
-			<span data-i18n="drop_hint">or click to choose files (.xml, .xml.gz, .zip - several files allowed)</span>
+			<span data-i18n="drop_hint">or click to choose files (.xml, .xml.gz, .zip, or emails .eml - several files allowed)</span>
 		</label>
 	</section>
 
@@ -44,6 +44,7 @@
 		<h2 data-i18n="help_title">How does it work?</h2>
 		<ul>
 			<li data-i18n="help_1_html">Mailbox providers (Google, Microsoft, Yahoo…) send a compressed report every day to the <code>rua=</code> address of your DMARC record.</li>
+			<li data-i18n="help_eml">You can also drop the emails themselves from your mail client (.eml files): their report attachments are extracted.</li>
 			<li data-i18n="help_2">Drop one or more of these files above: they are read directly in your browser and are not sent to any server.</li>
 			<li data-i18n="help_dmarc_html">A message <b>passes DMARC</b> when DKIM <em>or</em> SPF is valid <em>and aligned</em> with the <code>From:</code> domain.</li>
 		</ul>

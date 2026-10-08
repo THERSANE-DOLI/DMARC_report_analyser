@@ -15,7 +15,8 @@
  */
 
 /**
- * Parse DMARC aggregate reports (RFC 7489, rua) in the browser, from .xml, .xml.gz/.gz or .zip files.
+ * Parse DMARC aggregate reports (RFC 7489, rua) in the browser, from .xml, .xml.gz/.gz or .zip files,
+ * or from the attachments of emails (.eml) dropped from a mail client.
  * Same output as src/DmarcParser.php. Errors are returned as [translation key, arg0, arg1…].
  */
 (function () {
@@ -137,6 +138,128 @@
 		return el ? el.textContent.trim() : '';
 	}
 
+	// ---------- Emails (.eml): DMARC reports are attachments ----------
+	/** Max depth of nested multiparts / forwarded messages */
+	var MAX_MIME_DEPTH = 8;
+	/** Max number of MIME parts read in one email */
+	var MAX_MIME_PARTS = 200;
+
+	// Bytes <-> "binary string" (one char per byte, 0-255)
+	function toBinary(bytes) {
+		var out = '';
+		for (var i = 0; i < bytes.length; i += 8192) {
+			out += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+		}
+		return out;
+	}
+	function fromBinary(str) {
+		var out = new Uint8Array(str.length);
+		for (var i = 0; i < str.length; i++) out[i] = str.charCodeAt(i) & 0xff;
+		return out;
+	}
+
+	// Mail clients may start the file with an mbox separator line ("From - Thu Oct 08 …")
+	function stripMboxLine(raw) {
+		return raw.replace(/^From [^\n]*\n/, '');
+	}
+
+	// An email starts with header lines ("Name: value"), not with XML
+	function looksLikeEmail(name, bytes) {
+		if (/\.eml$/i.test(name)) return true;
+		var head = stripMboxLine(toBinary(bytes.subarray(0, 4096)));
+		if (/^\s*</.test(head)) return false;
+		var end = head.search(/\r?\n\r?\n/);
+		var headers = end > 0 ? head.slice(0, end) : head;
+		return /^[\x21-\x39\x3b-\x7e]+:/.test(headers) && /^(mime-version|content-type|received|return-path|message-id|from|date|subject|delivered-to):/im.test(headers);
+	}
+
+	function parseHeaders(raw) {
+		var headers = Object.create(null);
+		raw.replace(/\r?\n[ \t]+/g, ' ').split(/\r?\n/).forEach(function (line) {
+			var i = line.indexOf(':');
+			if (i > 0) {
+				var key = line.slice(0, i).trim().toLowerCase();
+				if (!(key in headers)) headers[key] = line.slice(i + 1).trim();
+			}
+		});
+		return headers;
+	}
+
+	// Parameter of a header value: boundary, name, filename (RFC 2231 filename*=utf-8''… included)
+	function headerParam(value, param) {
+		var m = new RegExp('(?:^|;)\\s*' + param + '\\*\\s*=\\s*([^;]+)', 'i').exec(value || '');
+		if (m) {
+			var v = m[1].trim().replace(/^"|"$/g, '').replace(/^[^']*'[^']*'/, '');
+			try {
+				return decodeURIComponent(v);
+			} catch (e) {
+				return v;
+			}
+		}
+		m = new RegExp('(?:^|;)\\s*' + param + '\\s*=\\s*("([^"]*)"|[^;]+)', 'i').exec(value || '');
+		return m ? (m[2] !== undefined ? m[2] : m[1]).trim() : '';
+	}
+
+	// RFC 2047 encoded words in names (=?utf-8?B?…?= / =?utf-8?Q?…?=)
+	function decodeWords(str) {
+		return str.replace(/=\?([^?]+)\?([bq])\?([^?]*)\?=/gi, function (all, charset, enc, text) {
+			try {
+				var bin = enc.toLowerCase() === 'b' ? atob(text) : text.replace(/_/g, ' ').replace(/=([0-9a-f]{2})/gi, function (x, h) { return String.fromCharCode(parseInt(h, 16)); });
+				return new TextDecoder(charset).decode(fromBinary(bin));
+			} catch (e) {
+				return all;
+			}
+		});
+	}
+
+	function decodeBody(body, encoding) {
+		encoding = (encoding || '').toLowerCase();
+		if (encoding === 'base64') {
+			try {
+				return fromBinary(atob(body.replace(/[^A-Za-z0-9+/=]/g, '')));
+			} catch (e) {
+				throw new ParseError('err_eml');
+			}
+		}
+		if (encoding === 'quoted-printable') {
+			return fromBinary(body.replace(/=\r?\n/g, '').replace(/=([0-9A-Fa-f]{2})/g, function (x, h) { return String.fromCharCode(parseInt(h, 16)); }));
+		}
+		return fromBinary(body);
+	}
+
+	/**
+	 * Find the report attachments of an email (binary string), multiparts and forwarded messages included.
+	 *
+	 * @return {Array} [{name, bytes}]
+	 */
+	function mailAttachments(raw, depth, counter) {
+		if (depth > MAX_MIME_DEPTH || ++counter.parts > MAX_MIME_PARTS) return [];
+		var sep = /\r?\n\r?\n/.exec(raw);
+		var headers = parseHeaders(sep ? raw.slice(0, sep.index) : raw);
+		var body = sep ? raw.slice(sep.index + sep[0].length) : '';
+		var type = (headers['content-type'] || 'text/plain').toLowerCase();
+
+		if (type.indexOf('multipart/') === 0) {
+			var boundary = headerParam(headers['content-type'], 'boundary');
+			if (!boundary) return [];
+			var delimiter = '--' + boundary;
+			var result = [];
+			body.split(delimiter).slice(1).forEach(function (part) {
+				if (part.slice(0, 2) === '--') return; // closing delimiter
+				result = result.concat(mailAttachments(part.replace(/^[ \t]*\r?\n/, ''), depth + 1, counter));
+			});
+			return result;
+		}
+		if (type.indexOf('message/rfc822') === 0) {
+			return mailAttachments(toBinary(decodeBody(body, headers['content-transfer-encoding'])), depth + 1, counter);
+		}
+
+		var name = decodeWords(headerParam(headers['content-disposition'], 'filename') || headerParam(headers['content-type'], 'name'));
+		var isReport = /\.(xml|gz|zip)$/i.test(name) || /^(application\/(gzip|x-gzip|zip|x-zip|x-zip-compressed|xml)|text\/xml)/.test(type);
+		if (!isReport) return [];
+		return [{ name: name || 'report', bytes: decodeBody(body, headers['content-transfer-encoding']) }];
+	}
+
 	function Parser() {
 		this.errors = [];
 		this.totalSize = 0;
@@ -158,7 +281,7 @@
 	/**
 	 * Decompress a file into one or several XML documents.
 	 */
-	Parser.prototype.extract = async function (name, bytes, inZip) {
+	Parser.prototype.extract = async function (name, bytes, inZip, inMail) {
 		// gzip
 		if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
 			var xml = await inflate(bytes, 'gzip', MAX_XML_SIZE);
@@ -184,6 +307,24 @@
 				}
 			}
 			return result;
+		}
+
+		// email (.eml dropped from a mail client): read its attachments
+		if (!inZip && !inMail && looksLikeEmail(name, bytes)) {
+			var attachments = mailAttachments(stripMboxLine(toBinary(bytes)), 0, { parts: 0 });
+			if (!attachments.length) throw new ParseError('err_eml_none');
+			var docs = [];
+			for (var j = 0; j < attachments.length; j++) {
+				var attName = name + '/' + attachments[j].name;
+				try {
+					// Attachments are read like dropped files, but cannot be emails themselves
+					docs = docs.concat(await this.extract(attName, attachments[j].bytes, false, true));
+				} catch (err) {
+					if (!(err instanceof ParseError)) throw err;
+					this.addError(err.key, attName, err.args);
+				}
+			}
+			return docs;
 		}
 
 		return this.checkTotal(name, bytes.length) ? [{ name: name, bytes: bytes }] : [];

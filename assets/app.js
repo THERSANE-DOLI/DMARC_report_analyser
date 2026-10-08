@@ -222,7 +222,14 @@
 		document.addEventListener(ev, function (e) { e.preventDefault(); if (ev === 'drop' || e.target === zone) zone.classList.remove('over'); });
 	});
 	document.addEventListener('drop', function (e) {
-		if (e.dataTransfer && e.dataTransfer.files.length) loadFiles(Array.prototype.slice.call(e.dataTransfer.files));
+		if (!e.dataTransfer) return;
+		if (e.dataTransfer.files.length) {
+			loadFiles(Array.prototype.slice.call(e.dataTransfer.files));
+		} else if (e.dataTransfer.types && e.dataTransfer.types.length) {
+			// Something was dropped but no file (e.g. a mail client giving only a message link)
+			errors = [['err_drop_nofile']];
+			renderErrors();
+		}
 	});
 
 	// ---------- Layout ----------

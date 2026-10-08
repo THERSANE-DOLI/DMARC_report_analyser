@@ -6,7 +6,7 @@
 	"title": "Analyseur de rapports DMARC",
 	"tagline": "Rapports agrégés (rua) au format .xml, .gz ou .zip",
 	"drop_title": "Déposez vos rapports DMARC ici",
-	"drop_hint": "ou cliquez pour choisir des fichiers (.xml, .xml.gz, .zip - plusieurs fichiers possibles)",
+	"drop_hint": "ou cliquez pour choisir des fichiers (.xml, .xml.gz, .zip, ou e-mails .eml - plusieurs fichiers possibles)",
 	"analysing": "Analyse de {0} fichier(s)…",
 	"errors_title": "{0} problème(s) :",
 	"help_title": "Comment ça marche ?",
@@ -129,5 +129,9 @@
 	"check_auto_hint": "Aucun sélecteur indiqué : {1} sélecteurs courants ont été testés et seules les clés actives trouvées sont affichées. Saisissez votre sélecteur s'il n'apparaît pas.",
 	"check_no_selector_found": "Aucun sélecteur courant trouvé : saisissez le sélecteur DKIM (balise s= de l'en-tête DKIM-Signature d'un message envoyé).",
 	"footer_source": "Code source sur GitHub",
-	"footer_by": "Réalisé par"
+	"footer_by": "Réalisé par",
+	"help_eml": "Vous pouvez aussi déposer directement les e-mails depuis votre messagerie (fichiers .eml) : leurs pièces jointes de rapport sont extraites.",
+	"err_eml": "{0} : pièce jointe illisible",
+	"err_eml_none": "{0} : aucune pièce jointe de rapport DMARC (.xml, .gz, .zip) trouvée dans cet e-mail",
+	"err_drop_nofile": "L'élément déposé ne contient pas de fichier. Depuis Thunderbird, glissez d'abord l'e-mail ou sa pièce jointe sur le bureau, puis déposez le fichier ici (ou utilisez Fichier > Enregistrer sous)."
 };
