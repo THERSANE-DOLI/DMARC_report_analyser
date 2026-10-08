@@ -14,7 +14,7 @@ Files are read **directly in the browser**: they are not sent to any server.
 |---|---|---|
 | Hosting | Any static hosting, e.g. **GitHub Pages** | Web server with PHP |
 | Report reading | In the browser | In the browser (same) |
-| IP reverse DNS (PTR) | Through Cloudflare DNS-over-HTTPS (the IPs are sent to Cloudflare) | By your server |
+| DNS queries (PTR, DMARC / SPF / DKIM checks) | Through Cloudflare DNS-over-HTTPS (the IPs and domain names are sent to Cloudflare) | By your server |
 | Planned | | Reading the reports from a mailbox |
 
 Both versions share the interface (`assets/`), the report reader and the translations (`lang/`). `index.php` simply serves `index.html` with the server features enabled.
@@ -24,10 +24,15 @@ Both versions share the interface (`assets/`), the report reader and the transla
 - Supported formats: `.xml`, `.gz` / `.xml.gz`, `.zip` (including a zip containing `.gz` files)
 - Several files at once, by drag and drop or file picker
 - Summary: number of reports and covered period, messages, source IPs, DMARC pass rate, aligned DKIM and SPF, quarantine / reject
-- Three sortable views:
+- Four views:
   - **By source IP**: volume, pass rate, DKIM signing domains, reporters (click a row to see the IP details)
   - **Records**: every report row (DKIM results with selector, SPF, `From`, envelope)
   - **Reports**: reporter, period, published policy (`p`, `sp`, `pct`, `adkim`, `aspf`, `fo`)
+  - **Domains**: check of the current DNS records of each domain
+    - **DMARC**: policy, `sp` weaker than `p`, `pct` < 100, missing `rua`, authorisation of external `rua` destinations, multiple records, inheritance from the parent domain
+    - **SPF**: presence, multiple records, final `all` mechanism (`+all`, `?all`, `~all`, `-all`), `redirect=`, `ptr`
+    - **DKIM**: for each selector seen in the reports, key published or revoked, key type and size (warning below 2048 bits), test mode, unaligned third-party signature
+- **Check a domain** without any report: enter a domain (or an email address, or a URL) and, if needed, its DKIM selectors. Without selector, a list of common selectors is tried. Shareable link: `?domain=example.com&selectors=mail`
 - Filters: free search (IP, domain, DKIM selector, reporter…), domain, reporter, failures only
 - On-demand reverse DNS (PTR) lookup of the IPs, IPv4 and IPv6
 - Duplicates ignored (same report dropped twice)
@@ -77,7 +82,7 @@ then open http://127.0.0.1:8765/ (server version) or http://127.0.0.1:8765/index
 
 | Constant | Default | Purpose |
 |---|---|---|
-| `PTR_RATE_LIMIT` | 500 | Max PTR lookups per visitor IP address and per hour |
+| `DNS_RATE_LIMIT` | 1000 | Max DNS queries (PTR and TXT) per visitor IP address and per hour |
 
 ## Adding a language
 
@@ -95,7 +100,7 @@ Report content must be treated as hostile: anybody can send a fake report to you
 - XML with `DOCTYPE` / `ENTITY` refused (XXE and “billion laughs” protection)
 - Decompression limits against gzip / zip bombs, nested zips refused
 - Files never leave the browser
-- Server version: PTR lookup only accepts valid IP addresses and is rate limited per visitor (`PTR_RATE_LIMIT`)
+- Server version: DNS queries only accept valid IP addresses and domain names and are rate limited per visitor (`DNS_RATE_LIMIT`)
 
 ### Before putting the server version online
 
@@ -111,8 +116,9 @@ Report content must be treated as hostile: anybody can send a fake report to you
 
 ```
 index.html            Page (static version), also used by index.php
-index.php             Server version: serves index.html + PTR lookup
+index.php             Server version: serves index.html + DNS queries (PTR, TXT)
 assets/parser.js      Reads .xml / .gz / .zip reports in the browser
+assets/dns.js         DMARC / SPF / DKIM DNS checks
 assets/app.js         Display, filters, sorting, language, PTR
 assets/style.css      Styles (light / dark)
 lang/en.js, fr.js     Translations
@@ -125,6 +131,9 @@ src/DmarcParser.php   PHP report reader, for the future mailbox reading
 - Zip64 and encrypted zip archives are not supported
 - Above 2,000 rows the table is truncated: refine the filters
 - No history: each analysis starts from the dropped files
+- DNS checks use the **current** records, which may differ from those in force on the dates of the reports
+- SPF: `include` mechanisms are not expanded yet (no count of the 10 DNS lookups limit)
+- The organizational domain is approximated by the last two labels (no public suffix list): alignment results are approximate for `.co.uk`-like domains
 
 ## License
 

@@ -14,7 +14,7 @@ Les fichiers sont lus **directement dans le navigateur** : ils ne sont envoyés 
 |---|---|---|
 | Hébergement | N'importe quel hébergement statique, par exemple **GitHub Pages** | Serveur web avec PHP |
 | Lecture des rapports | Dans le navigateur | Dans le navigateur (identique) |
-| Résolution PTR des IP | Via le DNS-over-HTTPS de Cloudflare (les IP sont envoyées à Cloudflare) | Par votre serveur |
+| Requêtes DNS (PTR, contrôles DMARC / SPF / DKIM) | Via le DNS-over-HTTPS de Cloudflare (les IP et noms de domaine sont envoyés à Cloudflare) | Par votre serveur |
 | Évolutions prévues | | Lecture des rapports depuis une boîte mail |
 
 Les deux versions partagent l'interface (`assets/`), le lecteur de rapports et les traductions (`lang/`). `index.php` affiche simplement `index.html` en activant les fonctions serveur.
@@ -24,10 +24,15 @@ Les deux versions partagent l'interface (`assets/`), le lecteur de rapports et l
 - Formats acceptés : `.xml`, `.gz` / `.xml.gz`, `.zip` (y compris un zip contenant des `.gz`)
 - Plusieurs fichiers à la fois, par glisser-déposer ou sélection
 - Indicateurs : nombre de rapports et période couverte, messages, IP sources, taux de conformité DMARC, DKIM et SPF alignés, quarantaine / rejet
-- Trois vues triables :
+- Quatre vues :
   - **Par IP source** : volume, taux de conformité, domaines signataires DKIM, rapporteurs (cliquer sur une ligne pour voir le détail de l'IP)
   - **Enregistrements** : détail de chaque ligne de rapport (résultats DKIM avec sélecteur, SPF, `From`, enveloppe)
   - **Rapports** : rapporteur, période, politique publiée (`p`, `sp`, `pct`, `adkim`, `aspf`, `fo`)
+  - **Domaines** : contrôle des enregistrements DNS actuels de chaque domaine
+    - **DMARC** : politique, `sp` plus faible que `p`, `pct` < 100, `rua` absent, autorisation des destinations `rua` externes, enregistrements multiples, héritage depuis le domaine parent
+    - **SPF** : présence, enregistrements multiples, mécanisme `all` final (`+all`, `?all`, `~all`, `-all`), `redirect=`, `ptr`
+    - **DKIM** : pour chaque sélecteur vu dans les rapports, clé publiée ou révoquée, type et taille de clé (alerte sous 2048 bits), mode test, signature d'un domaine tiers non aligné
+- **Vérifier un domaine** sans rapport : saisir un domaine (ou une adresse e-mail, ou une URL) et, si besoin, ses sélecteurs DKIM. Sans sélecteur, une liste de sélecteurs courants est testée. Lien partageable : `?domain=exemple.fr&selectors=mail`
 - Filtres : recherche libre (IP, domaine, sélecteur DKIM, rapporteur…), domaine, rapporteur, échecs uniquement
 - Résolution DNS inverse (PTR) des IP à la demande, IPv4 et IPv6
 - Doublons ignorés (même rapport déposé deux fois)
@@ -77,7 +82,7 @@ puis ouvrir http://127.0.0.1:8765/ (version serveur) ou http://127.0.0.1:8765/in
 
 | Constante | Défaut | Rôle |
 |---|---|---|
-| `PTR_RATE_LIMIT` | 500 | Nombre maximal de résolutions PTR par adresse IP de visiteur et par heure |
+| `DNS_RATE_LIMIT` | 1000 | Nombre maximal de requêtes DNS (PTR et TXT) par adresse IP de visiteur et par heure |
 
 ## Ajouter une langue
 
@@ -95,7 +100,7 @@ Le contenu d'un rapport doit être considéré comme hostile : n'importe qui peu
 - XML avec `DOCTYPE` / `ENTITY` refusé (protection XXE et « billion laughs »)
 - Limites de décompression contre les bombes gzip / zip, zip imbriqués refusés
 - Les fichiers ne quittent jamais le navigateur
-- Version serveur : la résolution PTR n'accepte que des adresses IP valides et est limitée par visiteur (`PTR_RATE_LIMIT`)
+- Version serveur : les requêtes DNS n'acceptent que des adresses IP et noms de domaine valides et sont limitées par visiteur (`DNS_RATE_LIMIT`)
 
 ### Avant une mise en ligne de la version serveur
 
@@ -111,8 +116,9 @@ Le contenu d'un rapport doit être considéré comme hostile : n'importe qui peu
 
 ```
 index.html            Page (version statique), utilisée aussi par index.php
-index.php             Version serveur : sert index.html + résolution PTR
+index.php             Version serveur : sert index.html + requêtes DNS (PTR, TXT)
 assets/parser.js      Lecture des rapports .xml / .gz / .zip dans le navigateur
+assets/dns.js         Contrôles DNS DMARC / SPF / DKIM
 assets/app.js         Affichage, filtres, tris, langue, PTR
 assets/style.css      Styles (clair / sombre)
 lang/en.js, fr.js     Traductions
@@ -125,6 +131,9 @@ src/DmarcParser.php   Lecteur de rapports en PHP, pour la future lecture d'une b
 - Archives zip64 et zip chiffrés non pris en charge
 - Au-delà de 2 000 lignes, le tableau est tronqué : affiner les filtres
 - Aucun historique : chaque analyse repart des fichiers déposés
+- Les contrôles DNS portent sur les enregistrements **actuels**, qui peuvent différer de ceux en vigueur aux dates des rapports
+- SPF : les `include` ne sont pas encore développés (pas de comptage de la limite des 10 requêtes DNS)
+- Le domaine organisationnel est approché par les deux derniers labels (pas de liste des suffixes publics) : résultat d'alignement approximatif pour les domaines en `.co.uk`, etc.
 
 ## Licence
 

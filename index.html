@@ -26,6 +26,16 @@
 		</label>
 	</section>
 
+	<section class="check-box" id="domain-check">
+		<form class="check-form" id="check-form" autocomplete="off">
+			<strong data-i18n="check_title">Check a domain</strong>
+			<input type="text" id="check-domain" spellcheck="false" required data-i18n-placeholder="check_domain_ph" placeholder="example.com, an email address or a URL">
+			<input type="text" id="check-selectors" spellcheck="false" data-i18n-placeholder="check_selectors_ph" placeholder="DKIM selectors (optional, comma separated)">
+			<button class="button" type="submit" data-i18n="check_btn">Check</button>
+		</form>
+		<div id="check-result"></div>
+	</section>
+
 	<section class="errors" id="errors" hidden></section>
 
 	<section id="app" hidden></section>
@@ -45,6 +55,7 @@
 <script src="lang/en.js"></script>
 <script src="lang/fr.js"></script>
 <script src="assets/parser.js"></script>
+<script src="assets/dns.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>

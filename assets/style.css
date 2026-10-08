@@ -141,3 +141,33 @@ td .sub { display: block; color: var(--muted); font-size: 12px; }
 .lang-switch button { padding: 3px 9px; font: 600 12px/1.4 inherit; color: var(--muted); background: none; border: none; cursor: pointer; }
 .lang-switch button:hover { color: var(--text); }
 .lang-switch button.active { background: var(--accent); color: #fff; }
+
+/* Domains tab: DNS checks */
+.dns-note { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 10px 16px; color: var(--muted); font-size: 13px; border-bottom: 1px solid var(--border); }
+.dns-note span { flex: 1 1 300px; }
+.button.small { padding: 3px 10px; font-size: 12px; }
+.domain-card { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.domain-card:last-child { border-bottom: none; }
+.domain-card h3 { margin: 0 0 10px; font-size: 16px; }
+.dns-section { margin-bottom: 14px; }
+.dns-section h4 { margin: 0 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.dns-section h4 .mono { margin-left: 8px; text-transform: none; letter-spacing: 0; font-weight: normal; }
+.dns-record { display: block; margin: 4px 0; padding: 6px 8px; white-space: pre-wrap; word-break: break-all; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+.checks { list-style: none; margin: 6px 0 0; padding: 0; }
+.checks li { position: relative; padding: 2px 0 2px 22px; }
+.checks li::before { position: absolute; left: 0; width: 16px; text-align: center; font-weight: 700; }
+.checks li.ok::before { content: "✓"; color: var(--ok); }
+.checks li.warn::before { content: "!"; color: var(--warn); }
+.checks li.ko::before { content: "✕"; color: var(--ko); }
+.checks li.info::before { content: "•"; color: var(--muted); }
+.dkim-table { border: 1px solid var(--border); border-radius: 6px; }
+.dkim-table th { position: static; cursor: default; }
+.dkim-table .checks { margin: 0; }
+
+/* Domain checked by hand */
+.check-box { margin-bottom: 20px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.check-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 12px 14px; }
+.check-form input { flex: 1 1 220px; min-width: 0; padding: 6px 8px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+.check-form #check-domain { flex: 2 1 260px; }
+#check-result:not(:empty) { border-top: 1px solid var(--border); }
+#check-result > .checks { margin: 0; padding: 10px 14px; }

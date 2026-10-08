@@ -33,6 +33,7 @@
 	try {
 		config = JSON.parse($('app-config').textContent) || {};
 	} catch (e) {}
+	window.DmarcDns.configure({ server: !!config.server });
 
 	// ---------- i18n ----------
 	var dicts = window.DMARC_I18N || {};
@@ -77,6 +78,9 @@
 		document.querySelectorAll('body [data-i18n]').forEach(function (el) {
 			el.innerHTML = T(el.dataset.i18n);
 		});
+		document.querySelectorAll('[data-i18n-placeholder]').forEach(function (el) {
+			el.placeholder = Tp(el.dataset.i18nPlaceholder);
+		});
 		$('lang-switch').querySelectorAll('button').forEach(function (b) {
 			b.classList.toggle('active', b.dataset.lang === lang);
 			b.setAttribute('aria-pressed', b.dataset.lang === lang ? 'true' : 'false');
@@ -92,6 +96,7 @@
 		} catch (e) {}
 		translateStatic();
 		renderErrors();
+		renderManualCheck();
 		if (reports.length) {
 			buildLayout();
 			render();
@@ -284,7 +289,8 @@
 
 		var byIp = groupByIp(recs);
 		var byRep = groupByReport(recs);
-		var tabs = [['ip', T('tab_ip'), byIp.length], ['rec', T('tab_rec'), recs.length], ['rep', T('tab_rep'), byRep.length]];
+		var doms = uniq(recs.map(function (r) { return r.report.policy.domain; })).sort();
+		var tabs = [['ip', T('tab_ip'), byIp.length], ['rec', T('tab_rec'), recs.length], ['rep', T('tab_rep'), byRep.length], ['dom', T('tab_dom'), doms.length]];
 		$('tabs').innerHTML = tabs.map(function (t) {
 			return '<button type="button" data-tab="' + t[0] + '" class="' + (state.tab === t[0] ? 'active' : '') + '">' + t[1] + ' <span class="count">' + fmtNum(t[2]) + '</span></button>';
 		}).join('');
@@ -294,7 +300,8 @@
 
 		if (state.tab === 'ip') renderTable('ip', byIp, ipColumns, function (row) { state.ip = row.ip; state.tab = 'rec'; render(); });
 		else if (state.tab === 'rec') renderTable('rec', recs, recColumns);
-		else renderTable('rep', byRep, repColumns);
+		else if (state.tab === 'rep') renderTable('rep', byRep, repColumns);
+		else renderDomains(recs, doms);
 	}
 
 	function renderCards(recs) {
@@ -481,6 +488,207 @@
 		}
 	}
 
+	// ---------- Domains: DNS checks of DMARC, SPF and DKIM ----------
+	var dnsResults = Object.create(null);
+	var dnsPending = Object.create(null);
+	var dnsRenderTimer = null;
+
+	// Selectors tried when a domain is checked by hand without selector
+	var COMMON_SELECTORS = ['default', 'dkim', 'mail', 'google', 'selector1', 'selector2', 'k1', 'k2', 'k3', 's1', 's2', 's1024', 's2048', 'smtp', 'mx',
+		'key1', 'key2', 'mxvault', 'zmail', 'protonmail', 'protonmail2', 'protonmail3', 'fm1', 'fm2', 'fm3', 'mandrill', 'mailjet',
+		'everlytickey1', 'everlytickey2', 'sig1', 'dk', '20230601', '20221208', '20210112', '20161025'];
+
+	// Result of a check, or null while loading (the query is started and the views re-rendered when done)
+	function dnsCheck(kind, domain, selector) {
+		var key = kind + '|' + domain + '|' + (selector || '');
+		if (key in dnsResults) return dnsResults[key];
+		if (!dnsPending[key]) {
+			dnsPending[key] = true;
+			var check = kind === 'dmarc' ? window.DmarcDns.checkDmarc(domain)
+				: kind === 'spf' ? window.DmarcDns.checkSpf(domain)
+				: window.DmarcDns.checkDkim(domain, selector);
+			check.then(function (res) { dnsResults[key] = res; }, function () { dnsResults[key] = { error: true }; }).then(function () {
+				delete dnsPending[key];
+				scheduleDnsRender();
+			});
+		}
+		return null;
+	}
+
+	function scheduleDnsRender() {
+		clearTimeout(dnsRenderTimer);
+		dnsRenderTimer = setTimeout(function () {
+			if (reports.length && state.tab === 'dom') render();
+			renderManualCheck();
+		}, 80);
+	}
+
+	function resetDns() {
+		window.DmarcDns.clearCache();
+		dnsResults = Object.create(null);
+	}
+
+	function checksList(checks) {
+		return '<ul class="checks">' + checks.map(function (c) {
+			return '<li class="' + c[0] + '">' + T(c[1], c[2]) + '</li>';
+		}).join('') + '</ul>';
+	}
+
+	function dnsSection(title, res) {
+		var html = '<div class="dns-section"><h4>' + title + (res && res.name ? '<span class="mono">' + esc(res.name) + '</span>' : '') + '</h4>';
+		if (res === null) return html + '<p class="muted">' + T('dns_loading') + '</p></div>';
+		if (res.error) return html + checksList([['ko', 'dns_error']]) + '</div>';
+		return html + res.records.map(function (r) { return '<code class="dns-record">' + esc(r) + '</code>'; }).join('') + checksList(res.checks) + '</div>';
+	}
+
+	function dnsNote() {
+		return '<div class="dns-note"><span>' + T(config.server ? 'dns_note_server' : 'dns_note_doh') + '</span>' +
+			'<button class="button small" type="button" data-recheck>' + T('dns_recheck') + '</button></div>';
+	}
+
+	function bindRecheck(el) {
+		el.querySelectorAll('[data-recheck]').forEach(function (b) {
+			b.onclick = function () {
+				resetDns();
+				if (reports.length) render();
+				renderManualCheck();
+			};
+		});
+	}
+
+	/**
+	 * DMARC, SPF and DKIM checks of one domain.
+	 *
+	 * @param {string} d          Domain
+	 * @param {Object[]} sels     DKIM selectors: {domain, selector, count, pass}
+	 * @param {boolean} withStats Show the signing domain and message columns (selectors seen in reports)
+	 * @param {string} emptyKey   Message when there is no selector (none: no message)
+	 * @param {string} intro      HTML shown above the DKIM table
+	 */
+	function domainCard(d, sels, withStats, emptyKey, intro) {
+		var html = '<div class="domain-card"><h3>' + esc(d) + '</h3>' +
+			dnsSection('DMARC', dnsCheck('dmarc', d)) +
+			dnsSection('SPF', dnsCheck('spf', d)) +
+			'<div class="dns-section"><h4>DKIM</h4>' + (intro || '');
+		if (!sels.length) {
+			if (emptyKey) html += '<p class="muted">' + T(emptyKey) + '</p>';
+			return html + '</div></div>';
+		}
+		html += '<table class="dkim-table"><thead><tr><th>' + T('dkim_col_selector') + '</th>' +
+			(withStats ? '<th>' + T('col_domain') + '</th><th class="num">' + T('dkim_col_seen') + '</th>' : '') +
+			'<th>' + T('dkim_col_key') + '</th><th>' + T('dkim_col_status') + '</th></tr></thead><tbody>';
+		sels.forEach(function (s) {
+			var res = dnsCheck('dkim', s.domain, s.selector);
+			var checks = res && !res.error ? res.checks.slice() : [];
+			if (!window.DmarcDns.aligned(s.domain, d)) checks.push(['info', 'dkim_unaligned', [d]]);
+			html += '<tr><td class="mono">' + esc(s.selector) + '</td>' +
+				(withStats ? '<td>' + esc(s.domain) + '</td><td class="num">' + fmtNum(s.count) + '<span class="sub">' + T('dkim_pass_count', [fmtNum(s.pass)]) + '</span></td>' : '') +
+				'<td>' + (res && !res.error && res.keyType ? esc(res.keyType.toUpperCase()) + (res.bits ? ' ' + res.bits + ' bits' : '') : '') + '</td>' +
+				'<td>' + (res === null ? '<span class="muted">' + T('dns_loading') + '</span>' : res.error ? checksList([['ko', 'dns_error']]) : checksList(checks)) + '</td></tr>';
+		});
+		return html + '</tbody></table></div></div>';
+	}
+
+	// Domains tab: domains and DKIM selectors found in the reports
+	function renderDomains(recs, doms) {
+		var html = dnsNote();
+		if (!doms.length) html += '<div class="empty">' + T('no_result') + '</div>';
+		doms.forEach(function (d) {
+			var sels = Object.create(null);
+			recs.forEach(function (r) {
+				if (r.report.policy.domain !== d) return;
+				r.authDkim.forEach(function (a) {
+					if (!a.selector || !a.domain) return;
+					var k = a.domain + '|' + a.selector;
+					var s = sels[k] || (sels[k] = { domain: a.domain, selector: a.selector, count: 0, pass: 0 });
+					s.count += r.count;
+					if (a.result === 'pass') s.pass += r.count;
+				});
+			});
+			var selList = Object.keys(sels).map(function (k) { return sels[k]; }).sort(function (a, b) { return b.count - a.count; });
+			html += domainCard(d, selList, true, 'dkim_none_seen');
+		});
+		$('table').innerHTML = html;
+		bindRecheck($('table'));
+	}
+
+	// ---------- Domain checked by hand (form above the reports) ----------
+	var manual = null;
+
+	// Accept a domain, an email address or a URL; IDN converted to punycode
+	function normalizeDomain(value) {
+		var v = String(value || '').trim().toLowerCase().replace(/^mailto:/, '');
+		var isUrl = /^[a-z][a-z0-9+.-]*:\/\//.test(v);
+		v = v.replace(/^[a-z][a-z0-9+.-]*:\/\//, '').replace(/[\/?#].*$/, '');
+		// The web site of a domain is usually www.<domain>: check the mail domain
+		if (isUrl) v = v.replace(/^www\./, '');
+		if (v.indexOf('@') !== -1) v = v.slice(v.lastIndexOf('@') + 1);
+		v = v.replace(/:\d+$/, '').replace(/\.$/, '');
+		try {
+			v = new URL('http://' + v).hostname;
+		} catch (e) {}
+		return v;
+	}
+
+	function runManualCheck(domainInput, selectorsInput) {
+		var d = normalizeDomain(domainInput);
+		var sels = uniq(String(selectorsInput || '').toLowerCase().split(/[\s,;]+/).filter(function (s) {
+			return /^[a-z0-9_-]+(\.[a-z0-9_-]+)*$/.test(s);
+		}));
+		if (!window.DmarcDns.validName(d)) {
+			manual = { error: true, input: String(domainInput || '').trim() };
+		} else {
+			manual = { domain: d, selectors: sels, auto: !sels.length };
+			// Shareable link: ?domain=…&selectors=…
+			try {
+				var url = new URL(location.href);
+				url.searchParams.set('domain', d);
+				if (sels.length) url.searchParams.set('selectors', sels.join(','));
+				else url.searchParams.delete('selectors');
+				history.replaceState(null, '', url);
+			} catch (e) {}
+		}
+		renderManualCheck();
+	}
+
+	function renderManualCheck() {
+		var box = $('check-result');
+		if (!manual) {
+			box.innerHTML = '';
+			return;
+		}
+		if (manual.error) {
+			box.innerHTML = checksList([['ko', 'check_invalid', [manual.input]]]);
+			return;
+		}
+		var d = manual.domain;
+		var rows, intro = '', emptyKey = 'check_no_selector_found';
+		if (manual.auto) {
+			var pending = 0;
+			rows = COMMON_SELECTORS.filter(function (s) {
+				var res = dnsCheck('dkim', d, s);
+				if (res === null) {
+					pending++;
+					return false;
+				}
+				// Revoked keys of rotated selectors are normal: only active keys are listed
+				return !res.error && res.records.length > 0 && !res.checks.some(function (c) { return c[1] === 'dkim_revoked'; });
+			}).map(function (s) { return { domain: d, selector: s }; });
+			intro = '<p class="muted">' + T(pending ? 'check_auto_searching' : 'check_auto_hint', [COMMON_SELECTORS.length - pending, COMMON_SELECTORS.length]) + '</p>';
+			if (pending) emptyKey = null;
+		} else {
+			rows = manual.selectors.map(function (s) { return { domain: d, selector: s }; });
+		}
+		box.innerHTML = dnsNote() + domainCard(d, rows, false, emptyKey, intro);
+		bindRecheck(box);
+	}
+
+	$('check-form').addEventListener('submit', function (e) {
+		e.preventDefault();
+		resetDns();
+		runManualCheck($('check-domain').value, $('check-selectors').value);
+	});
+
 	// ---------- Reverse DNS ----------
 	// Expand an IPv6 address to its 32 hex digits, or '' if invalid
 	function expandIpv6(ip) {
@@ -551,4 +759,14 @@
 		}
 		next();
 	}
+
+	// ---------- Check given in the URL ----------
+	try {
+		var params = new URLSearchParams(location.search);
+		if (params.get('domain')) {
+			$('check-domain').value = params.get('domain');
+			$('check-selectors').value = params.get('selectors') || '';
+			runManualCheck(params.get('domain'), params.get('selectors'));
+		}
+	} catch (e) {}
 })();

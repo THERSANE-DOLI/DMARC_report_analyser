@@ -20,26 +20,28 @@
  * DMARC report analyser - server version
  *
  * Serves the same page as index.html (reports are still read in the browser) and adds server features:
- * - ?ptr=IP : reverse DNS lookup done by this server (the static version uses Cloudflare DNS-over-HTTPS)
+ * - ?ptr=IP   : reverse DNS lookup done by this server
+ * - ?txt=name : TXT records (DMARC, SPF, DKIM checks) queried by this server
+ * (the static version uses Cloudflare DNS-over-HTTPS for both)
  * Later: reading the reports from a mailbox with src/DmarcParser.php.
  */
 
-/** Max reverse DNS lookups per client IP and per hour */
-define('PTR_RATE_LIMIT', 500);
+/** Max DNS queries (PTR + TXT) per client IP and per hour */
+define('DNS_RATE_LIMIT', 1000);
 
 ini_set('display_errors', '0');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: no-referrer');
 
 /**
- * Count the PTR lookups of the client IP (fixed one hour window, stored in the temp folder).
+ * Count the DNS queries of the client IP (fixed one hour window, stored in the temp folder).
  *
  * @return bool False when the limit is reached
  */
-function ptrRateLimitOk()
+function dnsRateLimitOk()
 {
 	$client = isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : '';
-	$fp = @fopen(sys_get_temp_dir().'/dmarc-ptr-'.sha1($client), 'c+');
+	$fp = @fopen(sys_get_temp_dir().'/dmarc-dns-'.sha1($client), 'c+');
 	if (!$fp) {
 		return true;
 	}
@@ -55,7 +57,7 @@ function ptrRateLimitOk()
 	fwrite($fp, json_encode($data));
 	flock($fp, LOCK_UN);
 	fclose($fp);
-	return $data['count'] <= PTR_RATE_LIMIT;
+	return $data['count'] <= DNS_RATE_LIMIT;
 }
 
 // Reverse DNS lookup (called in AJAX by the page)
@@ -68,13 +70,43 @@ if (isset($_GET['ptr'])) {
 		echo json_encode(array('host' => ''));
 		exit;
 	}
-	if (!ptrRateLimitOk()) {
+	if (!dnsRateLimitOk()) {
 		http_response_code(429);
 		echo json_encode(array('host' => ''));
 		exit;
 	}
 	$host = gethostbyaddr($ip);
 	echo json_encode(array('ip' => $ip, 'host' => ($host && $host !== $ip) ? $host : ''));
+	exit;
+}
+
+// TXT records (called in AJAX by the Domains tab)
+if (isset($_GET['txt'])) {
+	header('Content-Type: application/json; charset=utf-8');
+	header('Cache-Control: no-store');
+	$name = is_string($_GET['txt']) ? strtolower($_GET['txt']) : '';
+	if (!preg_match('/^(?=.{1,253}$)([a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?\.)+[a-z0-9-]{2,63}$/', $name)) {
+		http_response_code(400);
+		echo json_encode(array('records' => array()));
+		exit;
+	}
+	if (!dnsRateLimitOk()) {
+		http_response_code(429);
+		echo json_encode(array('records' => array()));
+		exit;
+	}
+	$found = @dns_get_record($name, DNS_TXT);
+	if ($found === false) {
+		http_response_code(502);
+		echo json_encode(array('records' => array()));
+		exit;
+	}
+	$records = array();
+	foreach ($found as $rr) {
+		// Long TXT records are split in several strings: "entries" keeps them, "txt" is their concatenation
+		$records[] = isset($rr['entries']) ? implode('', $rr['entries']) : (isset($rr['txt']) ? $rr['txt'] : '');
+	}
+	echo json_encode(array('records' => $records), JSON_INVALID_UTF8_SUBSTITUTE);
 	exit;
 }
 
