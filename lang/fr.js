@@ -127,5 +127,7 @@
 	"check_invalid": "« {0} » n'est pas un nom de domaine valide",
 	"check_auto_searching": "Recherche parmi les sélecteurs DKIM courants… {0} / {1}",
 	"check_auto_hint": "Aucun sélecteur indiqué : {1} sélecteurs courants ont été testés et seules les clés actives trouvées sont affichées. Saisissez votre sélecteur s'il n'apparaît pas.",
-	"check_no_selector_found": "Aucun sélecteur courant trouvé : saisissez le sélecteur DKIM (balise s= de l'en-tête DKIM-Signature d'un message envoyé)."
+	"check_no_selector_found": "Aucun sélecteur courant trouvé : saisissez le sélecteur DKIM (balise s= de l'en-tête DKIM-Signature d'un message envoyé).",
+	"footer_source": "Code source sur GitHub",
+	"footer_by": "Réalisé par"
 };

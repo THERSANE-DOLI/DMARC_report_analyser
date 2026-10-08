@@ -127,5 +127,7 @@
 	"check_invalid": "“{0}” is not a valid domain name",
 	"check_auto_searching": "Searching the common DKIM selectors… {0} / {1}",
 	"check_auto_hint": "No selector given: {1} common selectors were tried and only the active keys found are shown. Enter your selector if it is not listed.",
-	"check_no_selector_found": "No common selector found: enter the DKIM selector (s= tag of the DKIM-Signature header of a sent message)."
+	"check_no_selector_found": "No common selector found: enter the DKIM selector (s= tag of the DKIM-Signature header of a sent message).",
+	"footer_source": "Source code on GitHub",
+	"footer_by": "Made by"
 };

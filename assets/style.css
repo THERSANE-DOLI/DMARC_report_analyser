@@ -171,3 +171,11 @@ td .sub { display: block; color: var(--muted); font-size: 12px; }
 .check-form #check-domain { flex: 2 1 260px; }
 #check-result:not(:empty) { border-top: 1px solid var(--border); }
 #check-result > .checks { margin: 0; padding: 10px 14px; }
+
+/* Footer */
+/* Keeps the footer at the bottom of the window on short pages */
+body { display: flex; flex-direction: column; min-height: 100vh; }
+main { flex: 1 0 auto; width: 100%; padding-bottom: 30px; }
+.site-footer { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 16px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--border); }
+.site-footer a { color: var(--muted); }
+.site-footer a:hover { color: var(--accent); }
